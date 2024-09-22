@@ -1,11 +1,14 @@
 package pb
 
-import "time"
+import (
+	"log"
+	"time"
+)
 
 type Progressable interface {
 	Total() int64
 	Value() int64
-	Finished() bool
+	FinishedChan() <-chan struct{}
 }
 
 func RegisterProgressable(pr Progressable, removeFunc func(*ProgressBar)) *ProgressBar {
@@ -15,12 +18,20 @@ func RegisterProgressable(pr Progressable, removeFunc func(*ProgressBar)) *Progr
 }
 
 func progressWorker(pr Progressable, pb *ProgressBar, removeFunc func(*ProgressBar)) {
-	for ; !pr.Finished(); time.Sleep(time.Second) {
-		if !pb.IsStarted() {
-			continue
+	fc := pr.FinishedChan()
+	ticker := time.NewTicker(time.Second)
+	defer pb.Finish()
+	defer removeFunc(pb)
+	for {
+		select {
+		case <-ticker.C:
+			_ = pb.SetTotal(pr.Total())
+			_ = pb.SetCurrent(pr.Value())
+			log.Println("Updating bar", pr.Total(), pr.Value())
+		case _, ok := <-fc:
+			if !ok {
+				return
+			}
 		}
-		_ = pb.SetCurrent(pr.Value()).SetTotal(pr.Total())
 	}
-	removeFunc(pb)
-	pb.Finish()
 }
