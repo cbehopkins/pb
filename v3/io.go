@@ -13,7 +13,9 @@ type Reader struct {
 // Read reads bytes from wrapped reader and add amount of bytes to progress bar
 func (r *Reader) Read(p []byte) (n int, err error) {
 	n, err = r.Reader.Read(p)
-	r.bar.Add(n)
+	if n > 0 && r.bar != nil {
+		r.bar.Add(n)
+	}
 	return
 }
 
@@ -35,11 +37,13 @@ type Writer struct {
 // Write writes bytes to wrapped writer and add amount of bytes to progress bar
 func (r *Writer) Write(p []byte) (n int, err error) {
 	n, err = r.Writer.Write(p)
-	r.bar.Add(n)
+	if n > 0 && r.bar != nil {
+		r.bar.Add(n)
+	}
 	return
 }
 
-// Close the wrapped reader when it implements io.Closer
+// Close the wrapped writer when it implements io.Closer
 func (r *Writer) Close() (err error) {
 	r.bar.Finish()
 	if closer, ok := r.Writer.(io.Closer); ok {

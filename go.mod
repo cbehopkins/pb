@@ -1,4 +1,4 @@
-module github.com/cheggaaa/pb
+module github.com/cbehopkins/pb
 
 require (
 	github.com/fatih/color v1.9.0
@@ -7,4 +7,6 @@ require (
 	golang.org/x/sys v0.1.0
 )
 
-go 1.12
+require github.com/mattn/go-isatty v0.0.11 // indirect
+
+go 1.24

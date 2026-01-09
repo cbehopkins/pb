@@ -5,10 +5,10 @@ package pb
 
 import (
 	"fmt"
-	"log"
+	"os"
 	"strings"
 
-	"github.com/cheggaaa/pb/v3/termutil"
+	"github.com/cbehopkins/pb/v3/termutil"
 )
 
 func (p *Pool) print(first bool) bool {
@@ -18,17 +18,20 @@ func (p *Pool) print(first bool) bool {
 	if !first {
 		coords, err := termutil.GetCursorPos()
 		if err != nil {
-			log.Panic(err)
-		}
-		coords.Y -= int16(p.lastBarsCount)
-		if coords.Y < 0 {
-			coords.Y = 0
-		}
-		coords.X = 0
+			// Graceful fallback if cursor positioning fails
+			fmt.Fprintf(os.Stderr, "cursor position error: %v\n", err)
+			// Continue without repositioning
+		} else {
+			coords.Y -= int16(p.lastBarsCount)
+			if coords.Y < 0 {
+				coords.Y = 0
+			}
+			coords.X = 0
 
-		err = termutil.SetCursorPos(coords)
-		if err != nil {
-			log.Panic(err)
+			err = termutil.SetCursorPos(coords)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "cursor set error: %v\n", err)
+			}
 		}
 	}
 	cols, err := termutil.TerminalWidth()
@@ -46,10 +49,15 @@ func (p *Pool) print(first bool) bool {
 		}
 		out += fmt.Sprintf("\r%s\n", result)
 	}
+	var printErr error
 	if p.Output != nil {
-		fmt.Fprint(p.Output, out)
+		_, printErr = fmt.Fprint(p.Output, out)
 	} else {
-		fmt.Print(out)
+		_, printErr = fmt.Fprint(os.Stderr, out)
+	}
+	if printErr != nil {
+		// Log write errors to stderr as a fallback
+		fmt.Fprintf(os.Stderr, "pool print error: %v\n", printErr)
 	}
 	p.lastBarsCount = len(p.bars)
 	return isFinished

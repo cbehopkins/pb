@@ -17,7 +17,7 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 
-	"github.com/cheggaaa/pb/v3/termutil"
+	"github.com/cbehopkins/pb/v3/termutil"
 )
 
 // Version of ProgressBar library
@@ -92,7 +92,7 @@ type ProgressBar struct {
 	maxWidth       int
 	mu             sync.RWMutex
 	rm             sync.Mutex
-	vars           map[interface{}]interface{}
+	vars           map[any]any
 	elements       map[string]Element
 	output         io.Writer
 	coutput        io.Writer
@@ -116,7 +116,7 @@ func (pb *ProgressBar) configure() {
 	pb.configured = true
 
 	if pb.vars == nil {
-		pb.vars = make(map[interface{}]interface{})
+		pb.vars = make(map[any]any)
 	}
 	if pb.output == nil {
 		pb.output = os.Stderr
@@ -217,16 +217,20 @@ func (pb *ProgressBar) write(finish bool) {
 		if finish && ret == "\r" {
 			if pb.GetBool(CleanOnFinish) {
 				// "Wipe out" progress bar by overwriting one line with blanks
-				result = "\r" + color.New(color.Reset).Sprintf(strings.Repeat(" ", width)) + "\r"
+				result = "\r" + color.New(color.Reset).Sprintf("%s", strings.Repeat(" ", width)) + "\r"
 			} else {
 				result += "\n"
 			}
 		}
 	}
+	var err error
 	if pb.GetBool(Color) {
-		pb.coutput.Write([]byte(result))
+		_, err = pb.coutput.Write([]byte(result))
 	} else {
-		pb.nocoutput.Write([]byte(result))
+		_, err = pb.nocoutput.Write([]byte(result))
+	}
+	if err != nil {
+		pb.SetErr(err)
 	}
 }
 
@@ -279,14 +283,14 @@ func (pb *ProgressBar) Set(key, value interface{}) *ProgressBar {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 	if pb.vars == nil {
-		pb.vars = make(map[interface{}]interface{})
+		pb.vars = make(map[any]any)
 	}
 	pb.vars[key] = value
 	return pb
 }
 
 // Get return value by key
-func (pb *ProgressBar) Get(key interface{}) interface{} {
+func (pb *ProgressBar) Get(key any) any {
 	pb.mu.RLock()
 	defer pb.mu.RUnlock()
 	if pb.vars == nil {
@@ -297,7 +301,7 @@ func (pb *ProgressBar) Get(key interface{}) interface{} {
 
 // GetBool return value by key and try to convert there to boolean
 // If value doesn't set or not boolean - return false
-func (pb *ProgressBar) GetBool(key interface{}) bool {
+func (pb *ProgressBar) GetBool(key any) bool {
 	if v, ok := pb.Get(key).(bool); ok {
 		return v
 	}
@@ -415,7 +419,7 @@ func (pb *ProgressBar) IsFinished() bool {
 	return pb.finished
 }
 
-// SetTemplateString sets ProgressBar tempate string and parse it
+// SetTemplateString sets ProgressBar template string and parse it
 func (pb *ProgressBar) SetTemplateString(tmpl string) *ProgressBar {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
@@ -423,7 +427,7 @@ func (pb *ProgressBar) SetTemplateString(tmpl string) *ProgressBar {
 	return pb
 }
 
-// SetTemplateString sets ProgressBarTempate and parse it
+// SetTemplate sets ProgressBar template and parse it
 func (pb *ProgressBar) SetTemplate(tmpl ProgressBarTemplate) *ProgressBar {
 	return pb.SetTemplateString(string(tmpl))
 }

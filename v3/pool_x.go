@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cheggaaa/pb/v3/termutil"
+	"github.com/cbehopkins/pb/v3/termutil"
 )
 
 func (p *Pool) print(first bool) bool {
@@ -39,10 +39,15 @@ func (p *Pool) print(first bool) bool {
 		}
 		out += fmt.Sprintf("\r%s\n", result)
 	}
+	var printErr error
 	if p.Output != nil {
-		fmt.Fprint(p.Output, out)
+		_, printErr = fmt.Fprint(p.Output, out)
 	} else {
-		fmt.Fprint(os.Stderr, out)
+		_, printErr = fmt.Fprint(os.Stderr, out)
+	}
+	if printErr != nil {
+		// Log write errors to stderr as a fallback
+		fmt.Fprintf(os.Stderr, "pool print error: %v\n", printErr)
 	}
 	p.lastBarsCount = len(bars)
 	return isFinished
