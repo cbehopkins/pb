@@ -44,6 +44,9 @@ func RegisterProgressable(pr Progressable, removeFunc func(*ProgressBar)) (*Prog
 	if pr == nil {
 		return nil, errors.New("RegisterProgressable: pr is nil")
 	}
+	if removeFunc == nil {
+		return nil, errors.New("RegisterProgressable: removeFunc is nil")
+	}
 
 	bar := New64(pr.Total())
 
