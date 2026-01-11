@@ -96,4 +96,5 @@ func main() {
 	if err := pool.Stop(); err != nil {
 		log.Printf("Failed to stop pool: %v", err)
 	}
+	log.Println("All Done")
 }
