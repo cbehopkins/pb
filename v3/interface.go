@@ -1,6 +1,7 @@
 package pb
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -37,10 +38,25 @@ type TitleProgressable interface {
 // the progress bar template accordingly. The removeFunc is called when the progress is
 // complete to allow for cleanup. RegisterProgressable returns an error if pr is nil.
 //
+// This is a convenience wrapper that uses context.Background(). For cancellation support,
+// use RegisterProgressableContext, which stops the worker when the context is canceled and
+// records ctx.Err() on the ProgressBar.
+//
 // The function starts a goroutine that synchronizes the Progressable's progress to the
 // ProgressBar at regular intervals (100ms). The caller should not call Start() on the
 // returned ProgressBar - instead, add it to a Pool which manages display timing.
 func RegisterProgressable(pr Progressable, removeFunc func(*ProgressBar)) (*ProgressBar, error) {
+	return RegisterProgressableContext(context.Background(), pr, removeFunc)
+}
+
+// RegisterProgressableContext is the context-aware version of RegisterProgressable.
+// If ctx is canceled, the progress worker stops, sets bar.Err(ctx.Err()), and the
+// ProgressBar will not receive further updates. removeFunc is still invoked for
+// cleanup; it must be non-nil. If ctx is nil, context.Background() is used.
+func RegisterProgressableContext(ctx context.Context, pr Progressable, removeFunc func(*ProgressBar)) (*ProgressBar, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if pr == nil {
 		return nil, errors.New("RegisterProgressable: pr is nil")
 	}
@@ -53,7 +69,7 @@ func RegisterProgressable(pr Progressable, removeFunc func(*ProgressBar)) (*Prog
 	hasTitle(pr, bar)
 
 	// Pool will configure NotPrint and ManualUpdate when we Add it
-	go progressWorker(pr, bar, removeFunc)
+	go progressWorker(ctx, pr, bar, removeFunc)
 	return bar, nil
 }
 
@@ -76,7 +92,7 @@ func hasTitle(pr Progressable, bar *ProgressBar) {
 		bar.SetTemplateString(`{{string . "title"}} {{counters . }} {{bar . }} {{percent . }} {{speed . }}`)
 	}
 }
-func progressWorker(pr Progressable, bar *ProgressBar, removeFunc func(*ProgressBar)) {
+func progressWorker(ctx context.Context, pr Progressable, bar *ProgressBar, removeFunc func(*ProgressBar)) {
 	fc := pr.FinishedChan()
 	ticker := time.NewTicker(100 * time.Millisecond) // Update more frequently for smoother display
 	defer ticker.Stop()
@@ -84,6 +100,10 @@ func progressWorker(pr Progressable, bar *ProgressBar, removeFunc func(*Progress
 	// Don't call bar.Finish() - let the pool handle final display
 	for {
 		select {
+		case <-ctx.Done():
+			// Optional: propagate cancellation to bar error state
+			bar.SetErr(ctx.Err())
+			return
 		case <-ticker.C:
 			// Just update values, pool will handle display
 			bar.SetTotal(pr.Total())
@@ -120,13 +140,24 @@ func NewPoolProgressFactory(pool *Pool) *PoolProgressFactory {
 }
 
 // Register adds a Progressable to the factory's pool and tracks its completion.
+// It uses context.Background(); for cancellation, call RegisterContext.
 // The Progressable's progress is displayed using the pool's synchronized display mechanism.
 // Returns an error if p is nil. This method increments the factory's WaitGroup and
 // ensures it is properly decremented when the progress completes.
 // The caller should use factory.Wg.Wait() to block until all registered progressables complete.
 func (f *PoolProgressFactory) Register(p Progressable) error {
+	return f.RegisterContext(context.Background(), p)
+}
+
+// RegisterContext is the context-aware variant of Register. Cancellation of ctx stops
+// the progress worker, sets bar.Err(ctx.Err()), and prevents further updates. The pool
+// still manages display and cleanup. If ctx is nil, context.Background() is used.
+func (f *PoolProgressFactory) RegisterContext(ctx context.Context, p Progressable) error {
 	if p == nil {
 		return errors.New("Register: progressable is nil")
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	f.Wg.Add(1)
@@ -136,7 +167,7 @@ func (f *PoolProgressFactory) Register(p Progressable) error {
 		f.Wg.Done()
 	}
 
-	bar, err := RegisterProgressable(p, removeFunc)
+	bar, err := RegisterProgressableContext(ctx, p, removeFunc)
 	if err != nil {
 		f.Wg.Done()
 		return err

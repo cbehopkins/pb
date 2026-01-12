@@ -1,6 +1,7 @@
 package pb
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -290,7 +291,7 @@ func TestProgressWorkerIntegration(t *testing.T) {
 	removeFunc := func(pb *ProgressBar) {}
 
 	bar := New64(100)
-	go progressWorker(mock, bar, removeFunc)
+	go progressWorker(context.Background(), mock, bar, removeFunc)
 
 	// Wait for some updates
 	time.Sleep(150 * time.Millisecond)
