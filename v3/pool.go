@@ -52,6 +52,21 @@ func (p *Pool) Add(pbs ...*ProgressBar) {
 	}
 }
 
+// Remove removes a progress bar from the pool.
+// If the bar is not found in the pool, this is a no-op.
+func (p *Pool) Remove(bar *ProgressBar) {
+	p.m.Lock()
+	defer p.m.Unlock()
+	for i, b := range p.bars {
+		if b == bar {
+			// Remove by replacing with last element and truncating
+			p.bars[i] = p.bars[len(p.bars)-1]
+			p.bars = p.bars[:len(p.bars)-1]
+			return
+		}
+	}
+}
+
 func (p *Pool) Start() (err error) {
 	p.RefreshRate = defaultRefreshRate
 	p.shutdownCh, err = termutil.RawModeOn()

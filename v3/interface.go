@@ -97,15 +97,15 @@ func progressWorker(ctx context.Context, pr Progressable, bar *ProgressBar, remo
 	ticker := time.NewTicker(100 * time.Millisecond) // Update more frequently for smoother display
 	defer ticker.Stop()
 	defer removeFunc(bar)
-	// Don't call bar.Finish() - let the pool handle final display
+	defer bar.Finish()
 	for {
 		select {
 		case <-ctx.Done():
-			// Optional: propagate cancellation to bar error state
+			// Propagate cancellation to bar error state
 			bar.SetErr(ctx.Err())
 			return
 		case <-ticker.C:
-			// Just update values, pool will handle display
+			// Update values, pool will handle display
 			bar.SetTotal(pr.Total())
 			bar.SetCurrent(pr.Value())
 		case _, ok := <-fc:
@@ -162,8 +162,7 @@ func (f *PoolProgressFactory) RegisterContext(ctx context.Context, p Progressabl
 
 	f.Wg.Add(1)
 	removeFunc := func(pb *ProgressBar) {
-		// Note: root pb.Pool doesn't have Remove() method
-		// Progress bar will be cleaned up when pool stops
+		f.Pool.Remove(pb)
 		f.Wg.Done()
 	}
 
